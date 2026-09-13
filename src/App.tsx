@@ -1,158 +1,108 @@
 import "./styles.css";
+import { useEffect, useState } from "react";
+import Dashboard from "./ui/Dashboard";
+import Cases from "./ui/Cases";
+import TimelineView from "./ui/Timeline";
+import { store, useStore } from "./ui/store-hook";
 
-const project = {
-  "id": "hxwl-05",
-  "port": 5105,
-  "title": "水族箱水质监测",
-  "subtitle": "多鱼缸水质趋势、换水和异常指标提醒",
-  "stack": "React + Vite + TypeScript + CSS",
-  "theme": [
-    "#0891b2",
-    "#16a34a",
-    "#f59e0b"
-  ],
-  "domain": "水族养护",
-  "users": [
-    "水族店员",
-    "玩家",
-    "维护师"
-  ],
-  "metrics": [
-    "pH",
-    "氨氮",
-    "硝酸盐",
-    "换水周期"
-  ],
-  "filters": [
-    "草缸",
-    "海缸",
-    "三湖缸",
-    "繁殖缸"
-  ],
-  "fields": [
-    "pH",
-    "氨氮",
-    "亚硝酸盐",
-    "硝酸盐",
-    "硬度",
-    "温度",
-    "换水量"
-  ],
-  "records": [
-    [
-      "草缸A",
-      "pH 6.8",
-      "稳定",
-      "硝酸盐18ppm，计划周末换水30%"
-    ],
-    [
-      "海缸B",
-      "pH 8.1",
-      "关注",
-      "钙硬度偏低，需复测"
-    ],
-    [
-      "繁殖缸C",
-      "pH 7.2",
-      "异常",
-      "亚硝酸盐升高，停止投喂"
-    ]
-  ]
-};
+type Tab = "dashboard" | "cases" | "timeline";
 
-const statusColors = ["status-ok", "status-watch", "status-danger"];
+const TABS: { key: Tab; label: string }[] = [
+  { key: "dashboard", label: "鱼缸与检测" },
+  { key: "cases", label: "处置工单" },
+  { key: "timeline", label: "时间线与撤销" },
+];
 
-function MetricCard({ label, value, index }: { label: string; value: string; index: number }) {
+function OfflinePill() {
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    addEventListener("online", on);
+    addEventListener("offline", off);
+    return () => {
+      removeEventListener("online", on);
+      removeEventListener("offline", off);
+    };
+  }, []);
   return (
-    <article className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <i className={statusColors[index % statusColors.length]} />
-    </article>
+    <span className={`offline-pill ${online ? "on" : "off"}`} title="全部数据保存在本机，断网可正常使用">
+      <i />
+      {online ? "在线（已离线就绪）" : "离线模式 · 数据本机保存"}
+    </span>
+  );
+}
+
+function QuarantineBanner() {
+  const { revision } = useStore();
+  void revision;
+  const q = store.quarantineInfo();
+  const [showRaw, setShowRaw] = useState(false);
+  if (!q) return null;
+  return (
+    <div className="quarantine-banner" role="alert">
+      <div>
+        <strong>⚠ 检测到损坏的本地数据，已自动隔离</strong>
+        <p>
+          原因：{q.reason}（{new Date(q.at).toLocaleString("zh-CN")}）。
+          为保护现有记录，系统未加载该数据，当前界面使用安全的空状态启动。你可以查看原始内容后丢弃，或从备份重新导入。
+        </p>
+        <div className="btn-row">
+          <button onClick={() => setShowRaw((v) => !v)}>{showRaw ? "隐藏" : "查看"}原始数据</button>
+          <button className="primary-action" onClick={() => store.discardQuarantine()}>
+            丢弃损坏数据
+          </button>
+        </div>
+        {showRaw && <pre className="raw-dump">{q.raw.slice(0, 4000)}</pre>}
+      </div>
+    </div>
   );
 }
 
 function App() {
-  const values = project.metrics.map((metric: string, index: number) => {
-    const base = [84, 12, 31, 7][index % 4];
-    return String(base + index * 3);
-  });
+  const [tab, setTab] = useState<Tab>("dashboard");
+  const { state } = useStore();
+  const openCount = state.cases.filter((c) => c.status !== "closed").length;
 
   return (
     <main className="app-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">{project.id} · port {project.port}</p>
-          <h1>{project.title}</h1>
-          <p className="subtitle">{project.subtitle}</p>
+          <p className="eyebrow">离线可用 · 事件溯源 · 本机持久化</p>
+          <h1>鱼缸健康处置台</h1>
+          <p className="subtitle">
+            维护鱼缸、鱼群与检测记录；按鱼种、缸型与连续检测变化计算风险；
+            处置严格经过 <b>建议 → 执行 → 复测 → 关闭</b> 四阶段，重复用药与违规跨缸转移自动拦截。
+          </p>
         </div>
         <div className="stack-card">
-          <span>技术栈</span>
-          <strong>{project.stack}</strong>
+          <span>运行状态</span>
+          <strong>
+            {state.tanks.length} 个缸 · {state.groups.length} 个鱼群 · {state.tests.length} 条检测 · {openCount} 个进行中工单
+          </strong>
+          <OfflinePill />
         </div>
       </section>
 
-      <section className="metrics-grid">
-        {project.metrics.map((metric: string, index: number) => (
-          <MetricCard key={metric} label={metric} value={values[index]} index={index} />
+      <QuarantineBanner />
+
+      <nav className="tabbar">
+        {TABS.map((t) => (
+          <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
+            {t.label}
+            {t.key === "cases" && openCount > 0 && <span className="tab-count">{openCount}</span>}
+          </button>
         ))}
-      </section>
+      </nav>
 
-      <section className="workspace">
-        <aside className="panel narrow">
-          <h2>角色</h2>
-          <div className="chips">
-            {project.users.map((user: string) => (
-              <span key={user}>{user}</span>
-            ))}
-          </div>
-          <h2>筛选</h2>
-          <div className="chips muted">
-            {project.filters.map((filter: string) => (
-              <button key={filter}>{filter}</button>
-            ))}
-          </div>
-        </aside>
+      {tab === "dashboard" && <Dashboard />}
+      {tab === "cases" && <Cases />}
+      {tab === "timeline" && <TimelineView />}
 
-        <section className="panel">
-          <div className="section-heading">
-            <div>
-              <p>{project.domain}</p>
-              <h2>记录字段</h2>
-            </div>
-            <button className="primary-action">新增记录</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="records panel">
-        <div className="section-heading">
-          <div>
-            <p>示例数据</p>
-            <h2>近期记录</h2>
-          </div>
-          <button>导出摘要</button>
-        </div>
-        <div className="record-list">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")} className="record-card">
-              <div className="record-index">{String(index + 1).padStart(2, "0")}</div>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      <footer className="app-footer">
+        阈值规则：淡水 pH 6.5–7.5 / 氨氮 &lt;0.02ppm / 亚硝 &lt;0.1ppm；海缸与鱼种（金鱼、慈鲷、灯鱼等）单独修正；
+        单次换水 ≤50%，同药间隔 ≥72h。规则可在 <code>src/domain/thresholds.ts</code> 调整。
+      </footer>
     </main>
   );
 }
