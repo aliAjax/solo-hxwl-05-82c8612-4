@@ -16,8 +16,11 @@ React/localStorage，可直接用 Node 测试。
 npm install
 npm run dev      # http://localhost:5105
 npm run build    # 类型检查 + 生产构建（含 /sw.js 离线缓存）
-npm test         # 32 项领域测试 + 28 项 jsdom UI/恢复冒烟断言
+npm test         # 37 项 node:test（领域规则 32 + service worker 5）+ 28 项 jsdom 真实挂载冒烟
 ```
+
+`npm test` 一条命令在 Node 20 与 Node 22+ 均可一次跑通（测试入口显式指定文件而非目录；
+jsdom 全局安装器对新版 Node 的只读 `navigator`/`EventTarget` 全局做了重定义与方法绑定）。
 
 首次打开自带演示数据（草缸A / 海缸B / 繁殖缸C + 隔离缸Q，繁殖缸C 有一个进行中工单）。
 时间线页可一键「重置为演示数据」。

@@ -3,7 +3,7 @@
     "dev": "vite --host 0.0.0.0 --port 5105",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 5105",
-    "test": "node test/build-tests.cjs && node --test .test-build/ && node test/run-smoke.cjs && node test/run-corrupt-smoke.cjs"
+    "test": "node test/build-tests.cjs && node --test .test-build/suite.test.cjs test/sw.test.cjs && node test/run-smoke.cjs && node test/run-corrupt-smoke.cjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
